@@ -78,7 +78,6 @@ def main():
     print("True")
     model = nn.parallel.DataParallel(model, device_ids=gpus, output_device=gpus[0])
     model = model.module
-
   logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
   criterion = nn.CrossEntropyLoss()
@@ -89,7 +88,8 @@ def main():
       momentum=args.momentum,
       weight_decay=args.weight_decay
       )
-  optimizer = nn.DataParallel(optimizer, device_ids=gpus)
+  if len(gpus)>1:
+    optimizer = nn.DataParallel(optimizer, device_ids=gpus)
 
 
   train_transform, valid_transform = utils._data_transforms_cifar10(args)
@@ -102,7 +102,10 @@ def main():
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
 
-  scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer.module, float(args.epochs))
+  if len(gpus)>1:
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer.module, float(args.epochs))
+  else:
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
   for epoch in range(args.epochs):
     scheduler.step()
@@ -137,7 +140,12 @@ def train(train_queue, model, criterion, optimizer):
       loss += args.auxiliary_weight*loss_aux
     loss.backward()
     nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-    optimizer.module.step()
+
+    gpus = [int(i) for i in args.gpu.split(',')]
+    if len(gpus)>1:
+      optimizer.module.step()
+    else:
+      optimizer.step()
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)

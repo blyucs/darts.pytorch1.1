@@ -94,7 +94,7 @@ def main():
       args.learning_rate,
       momentum=args.momentum,
       weight_decay=args.weight_decay)
-  optimizer = nn.DataParallel(optimizer, device_ids=gpus)
+  #optimizer = nn.DataParallel(optimizer, device_ids=gpus)
 
   train_transform, valid_transform = utils._data_transforms_cifar10(args)
   train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
@@ -114,7 +114,7 @@ def main():
       pin_memory=True, num_workers=2)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer.module, float(args.epochs), eta_min=args.learning_rate_min)
+        optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
   architect = Architect(model, criterion, args)
 
@@ -166,7 +166,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
     loss.backward()
     nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-    optimizer.module.step()
+    optimizer.step()
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     objs.update(loss.item(), n)
